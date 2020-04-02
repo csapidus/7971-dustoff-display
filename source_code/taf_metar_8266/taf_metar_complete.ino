@@ -1,19 +1,40 @@
-/*  B7971 DUSTOFF BOARD
+/*  B7971 DUSTOFF IoT BOARD 
+ *  Date Modified: 1 Sep 19
  *  Developer: Mahdi Al-Husseini, mahdi07@msn.com
- *  Note: This project uses an Espressif 8266 NodeMCU LUA uC board, allowing for internet connectivity. It is required you set the ssid and password variables appropriately, and your lon and lat if intending on using METAR/TAF
+ *  
+ *  Note: This project uses an Espressif 8266 NodeMCU LUA uC board, allowing for internet connectivity. 
+ *  It is required you set the ssid and password variables appropriately, and your lon and lat if intending on using METAR/TAF (for now).
  *  License (Beerware): This code is open to the public but you buy me a beer if you use this and we meet someday
  */
 
 #include <ESP8266WiFi.h>  // standard 8266 WiFi connectivity (https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/readme.html)
 #include <WiFiClientSecure.h>  // supports secure connections using TLS (SSL) (https://github.com/espressif/arduino-esp32/tree/master/libraries/WiFiClientSecure)
-// #include <TimeLib.h> // time-keeping functionality for Arduino (https://github.com/PaulStoffregen/Time)
 #include <WiFiUdp.h> // allows for sending and recieving UDP packets (https://www.arduino.cc/en/Reference/WiFiUDPConstructor)
 
-// WiFi
-const char* ssid = "DUSTOFF";
-const char* password = "MEDEVAC";
+#include <IRrecv.h>
+#include <IRremoteESP8266.h>
+#include <IRutils.h>
 
-// National Weather Service (NWS) API
+/* For SparkFun IR Remote */ 
+const uint16_t BUTTON_POWER = 0x629D;
+const uint16_t BUTTON_A = 0x22DD;
+const uint16_t BUTTON_B = 0x02FD;
+const uint16_t BUTTON_C = 0xC23D;
+const uint16_t BUTTON_UP = 0x9867;
+const uint16_t BUTTON_DOWN = 0x38C7;
+const uint16_t BUTTON_LEFT = 0x30CF;
+const uint16_t BUTTON_RIGHT = 0x7A85;
+const uint16_t BUTTON_CIRCLE = 0x18E7;
+
+IRrecv irrecv(4); // Receive on pin 4
+decode_results results;
+uint16_t lastCode = 0; // This keeps track of the last code RX'd
+
+/* WiFi */
+const char* ssid = "ALI1224";
+const char* password = "Ali#1224";
+
+/* National Weather Service (NWS) API */
 const char* host = "www.aviationweather.gov";
 
 // Your current location; adjust as needed. This is currently hardcoded, but an update in the future will allow automatic triangulation of the 8266 location using LocationAPI from Unwired Labs.
@@ -33,11 +54,7 @@ String url_TAF = "/adds/dataserver_current/httpparam?dataSource=tafs&requestType
 const int httpsPort = 443;
 BearSSL::WiFiClientSecure client;
 
-// State Variables
-bool awaitingArrivals = true;
-bool arrivalsRequested = false;
-
-// Configuration
+/* Configuration */
 int pollDelay = 20000; //time between each retrieval
 int retryWifiDelay = 5000;
 const int API_TIMEOUT = 10000;
@@ -49,6 +66,7 @@ String wifi_status;
 
 void setup() {
   Serial.begin(9600);
+  irrecv.enableIRIn();  // Start the receiver
   // Serial.begin(115200);
   // {$B7F...}, {$B7E...}, and {$B7S...} are standard configurations for B7971 text display. This can be adjusted as desired; reference the smart_socket guide pdf. 
   Serial.println("$B7F0000000<cr>");
@@ -59,6 +77,7 @@ void setup() {
   connectToWifi();
   client.setInsecure();
   client.setTimeout(API_TIMEOUT);
+  scroll("Awaiting Instruction");
 }
 
 void connectToWifi() {
@@ -69,7 +88,7 @@ void connectToWifi() {
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) { //WAITING FOR WIFI
     delay(500);
-    // Serial.print(".");
+    Serial.print(".");
   }
   // Serial.println("");
   // Serial.println("WiFi connected");
@@ -79,6 +98,7 @@ void connectToWifi() {
 }
 
 void getMETAR() {
+  scroll("Loading METAR");
   // Use WiFiClientSecure class to create TLS connection
   // Serial.print("Connecting to ");
   // Serial.println(host);
@@ -94,7 +114,7 @@ void getMETAR() {
              "Connection: close \r\n\r\n");
   while(!client.available()){ delay(1);}
 
-  scroll("client available");
+  // scroll("client available");
   String matchString;
   String matchAppend;
 
@@ -120,11 +140,11 @@ void getMETAR() {
   scroll("METAR");
   scroll(METAR);
   
-  awaitingArrivals = false;
   client.stop();
 }
 
 void getTAF() {
+  scroll("Loading TAF");
   // Use WiFiClientSecure class to create TLS connection
   // Serial.print("Connecting to ");
   // Serial.println(host);
@@ -166,27 +186,40 @@ void getTAF() {
   scroll("TAF");
   scroll(TAF);
   
-  awaitingArrivals = false;
   client.stop();
 }
 
 void loop() {
-  if (awaitingArrivals) {
-    if (!arrivalsRequested) {
-      arrivalsRequested = true;
+   if(irrecv.decode(&results)){ 
+    /* read the RX'd IR into a 16-bit variable: */
+    uint16_t resultCode = (results.value & 0xFFFF);
+
+    /* The remote will continue to spit out 0xFFFFFFFF if a
+     button is held down. If we get 0xFFFFFFF, let's just
+     assume the previously pressed button is being held down */
+    if (resultCode == 0xFFFF)
+      resultCode = lastCode;
+    else
+      lastCode = resultCode;
+
+    // add additional functionality here, as needed
+    if (resultCode == 0x9867) {
       getMETAR();
+    } else if (resultCode == 0x38C7){
       getTAF();
+    } else if (resultCode == 0x30CF){
+      // getScores not developed
+      scroll("ESPN Scores ");
+    } else if (resultCode == 0x7A85){
+      // getStocks not developed
+      scroll("Stock Prices ");
     }
+    irrecv.resume();
   }
-  delay(pollDelay);
+  delay(100);
 }
 
-void resetCycle() {
-  awaitingArrivals = true;
-  arrivalsRequested = false;
-}
-
-// Scroll text across B7971s
+/* Scroll text across B7971s */
 void scroll(String data) {
   // Uppercase the input string
   data = "       " + data + "       ";
