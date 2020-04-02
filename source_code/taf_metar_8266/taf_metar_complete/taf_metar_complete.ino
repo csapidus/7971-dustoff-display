@@ -1,6 +1,7 @@
 /*  B7971 DUSTOFF IoT BOARD 
- *  Date Modified: 1 Sep 19
+ *  Date Modified: 2 Apr 2020
  *  Developer: Mahdi Al-Husseini, mahdi07@msn.com
+ *  mahdialhusseini.com
  *  
  *  Note: This project uses an Espressif 8266 NodeMCU LUA uC board, allowing for internet connectivity. 
  *  It is required you set the ssid and password variables appropriately, and your lon and lat if intending on using METAR/TAF (for now).
@@ -11,8 +12,9 @@
 #include <WiFiClientSecure.h>  // supports secure connections using TLS (SSL) (https://github.com/espressif/arduino-esp32/tree/master/libraries/WiFiClientSecure)
 #include <WiFiUdp.h> // allows for sending and recieving UDP packets (https://www.arduino.cc/en/Reference/WiFiUDPConstructor)
 
-#include <IRrecv.h>
-#include <IRremoteESP8266.h>
+/* IR package for 8266. Contributors: https://github.com/crankyoldgit/IRremoteESP8266/blob/master/.github/Contributors.md */
+#include <IRrecv.h> //
+#include <IRremoteESP8266.h> // https://github.com/crankyoldgit/IRremoteESP8266
 #include <IRutils.h>
 
 /* For SparkFun IR Remote */ 
@@ -31,15 +33,15 @@ decode_results results;
 uint16_t lastCode = 0; // This keeps track of the last code RX'd
 
 /* WiFi */
-const char* ssid = "ALI1224";
-const char* password = "Ali#1224";
+const char* ssid = "SSID";
+const char* password = "PW";
 
 /* National Weather Service (NWS) API */
 const char* host = "www.aviationweather.gov";
 
 // Your current location; adjust as needed. This is currently hardcoded, but an update in the future will allow automatic triangulation of the 8266 location using LocationAPI from Unwired Labs.
-String lon = "33.738328";
-String lat = "-84.707237";
+String lon = "43.738328";
+String lat = "-83.707237";
 
 /* TAF is Terminal Aerodrome Forecast: https://en.wikipedia.org/wiki/Terminal_aerodrome_forecast
  * METAR is Meteorological Terminal Aviation Routine [Weather Report]: https://en.wikipedia.org/wiki/METAR
